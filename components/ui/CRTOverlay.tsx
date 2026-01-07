@@ -1,38 +1,12 @@
-'use client';
+"use client";
 
-import { motion } from 'framer-motion';
+import React from "react";
 
-export function CRTOverlay() {
+export const CRTOverlay = () => {
     return (
-        <motion.div
-            className="fixed inset-0 pointer-events-none z-50"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5 }}
-        >
-            {/* Scanlines */}
-            <div
-                className="absolute inset-0"
-                style={{
-                    background: 'repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.15) 0px, rgba(0, 0, 0, 0.15) 1px, transparent 1px, transparent 2px)',
-                }}
-            />
-
-            {/* Vignette */}
-            <div
-                className="absolute inset-0"
-                style={{
-                    background: 'radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.4) 100%)',
-                }}
-            />
-
-            {/* Subtle noise */}
-            <div
-                className="absolute inset-0 opacity-5"
-                style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.5'/%3E%3C/svg%3E")`,
-                }}
-            />
-        </motion.div>
+        <div className="pointer-events-none fixed inset-0 z-[9999] overflow-hidden select-none">
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,6px_100%] pointer-events-none" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_50%,rgba(0,0,0,0.4)_100%)] pointer-events-none" />
+        </div>
     );
-}
+};

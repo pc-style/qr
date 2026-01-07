@@ -1,24 +1,19 @@
 import type { Metadata } from "next";
-import { Geist_Mono } from "next/font/google";
+import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { NeuralCursor } from "@/components/ui/NeuralCursor";
+import { CRTOverlay } from "@/components/ui/CRTOverlay";
+import { MatrixBackground } from "@/components/ui/MatrixBackground";
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-mono",
   subsets: ["latin"],
+  weight: ["400", "700", "800"],
 });
 
 export const metadata: Metadata = {
-  title: "QR.PCSTYLE // Cyberpunk QR Generator",
-  description: "Generate stylized QR codes with neon cyberpunk aesthetic. Matrix, Glitch, Neon, and Minimal styles.",
-  keywords: ["QR code", "generator", "cyberpunk", "neon", "qr code maker"],
-  authors: [{ name: "pcstyle" }],
-  openGraph: {
-    title: "QR.PCSTYLE // Cyberpunk QR Generator",
-    description: "Generate stylized QR codes with neon cyberpunk aesthetic",
-    url: "https://qr.pcstyle.dev",
-    siteName: "QR.PCSTYLE",
-    type: "website",
-  },
+  title: "QR.PCSTYLE // GENERATOR",
+  description: "Cybernetic QR code generation engine - pcstyle",
 };
 
 export default function RootLayout({
@@ -27,10 +22,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body className={`${geistMono.variable} antialiased font-mono bg-black text-white`}>
-        {children}
-        <div className="crt-overlay" aria-hidden="true" />
+    <html lang="en">
+      <body className={`${jetbrainsMono.variable} font-mono antialiased bg-black overflow-x-hidden`}>
+        <MatrixBackground />
+        <CRTOverlay />
+        <div className="relative z-10">{children}</div>
+        <NeuralCursor />
       </body>
     </html>
   );

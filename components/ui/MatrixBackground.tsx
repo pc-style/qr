@@ -1,69 +1,90 @@
-'use client';
+"use client";
 
-import { useEffect, useState, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import React, { useEffect, useRef } from "react";
 
-interface MatrixColumn {
-    id: number;
-    left: number;
-    duration: number;
-    delay: number;
-    characters: string;
-}
-
-export function MatrixBackground() {
-    const [columns, setColumns] = useState<MatrixColumn[]>([]);
-
-    const matrixChars = useMemo(() =>
-        'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789ABCDEF',
-        []
-    );
+export const MatrixBackground = () => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const mouseRef = useRef({ x: 0, y: 0 });
 
     useEffect(() => {
-        const columnCount = Math.floor(window.innerWidth / 30);
-        const newColumns: MatrixColumn[] = [];
+        const handleMouseMove = (e: MouseEvent) => {
+            mouseRef.current = { x: e.clientX, y: e.clientY };
+        };
+        window.addEventListener("mousemove", handleMouseMove);
+        return () => window.removeEventListener("mousemove", handleMouseMove);
+    }, []);
 
-        for (let i = 0; i < columnCount; i++) {
-            const chars = Array.from({ length: 20 }, () =>
-                matrixChars[Math.floor(Math.random() * matrixChars.length)]
-            ).join(' ');
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
 
-            newColumns.push({
-                id: i,
-                left: (i / columnCount) * 100,
-                duration: 8 + Math.random() * 12,
-                delay: Math.random() * -20,
-                characters: chars,
-            });
-        }
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
 
-        setColumns(newColumns);
-    }, [matrixChars]);
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+
+        const columns = Math.floor(width / 20);
+        const drops: number[] = new Array(columns).fill(1);
+
+        const chars = "01qrQRcodeCODE/:<>[]{}";
+
+        const draw = () => {
+            ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
+            ctx.fillRect(0, 0, width, height);
+
+            ctx.font = '12px "JetBrains Mono", monospace';
+
+            for (let i = 0; i < drops.length; i++) {
+                const text = chars[Math.floor(Math.random() * chars.length)];
+
+                const xPos = i * 20;
+                const yPos = drops[i] * 20;
+                const dist = Math.hypot(
+                    xPos - mouseRef.current.x,
+                    yPos - mouseRef.current.y
+                );
+
+                if (dist < 150) {
+                    ctx.fillStyle = "#ffffff";
+                    ctx.globalAlpha = 1;
+                } else {
+                    ctx.fillStyle = "#ff00ff";
+                    ctx.globalAlpha = Math.random() > 0.9 ? 1 : 0.15;
+                }
+
+                ctx.fillText(text, xPos, yPos);
+
+                if (drops[i] * 20 > height && Math.random() > 0.975) {
+                    drops[i] = 0;
+                }
+                drops[i]++;
+            }
+        };
+
+        const interval = setInterval(draw, 50);
+
+        const handleResize = () => {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        };
+
+        window.addEventListener("resize", handleResize);
+
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener("resize", handleResize);
+        };
+    }, []);
 
     return (
-        <div className="fixed inset-0 overflow-hidden -z-10 opacity-20">
-            {columns.map((column) => (
-                <motion.div
-                    key={column.id}
-                    className="matrix-column"
-                    style={{
-                        left: `${column.left}%`,
-                    }}
-                    initial={{ y: '-100%', opacity: 0 }}
-                    animate={{
-                        y: '100vh',
-                        opacity: [0, 1, 1, 0],
-                    }}
-                    transition={{
-                        duration: column.duration,
-                        delay: column.delay,
-                        repeat: Infinity,
-                        ease: 'linear',
-                    }}
-                >
-                    {column.characters}
-                </motion.div>
-            ))}
+        <div className="fixed inset-0 pointer-events-none z-0 opacity-20">
+            <canvas ref={canvasRef} className="w-full h-full" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(0,0,0,0),rgba(0,0,0,1))]" />
         </div>
     );
-}
+};

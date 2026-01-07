@@ -1,270 +1,318 @@
-'use client';
+"use client";
 
-import { useState, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Link, Download, Copy, Check, Sparkles, Terminal } from 'lucide-react';
-import { type QRStyle, type DownloadFormat, stylePresets, sizeOptions, formatOptions } from '@/lib/styles';
-import { StyleSelector } from './StyleSelector';
-import { ColorPicker } from './ColorPicker';
-import { QRPreview, QRPreviewHandle } from './QRPreview';
+import React, { useState, useEffect, useRef } from "react";
+import QRCode from "qrcode";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+    QrCode,
+    Download,
+    Copy,
+    Check,
+    Layers,
+    Palette,
+    Monitor,
+    Zap,
+    Shield,
+    RefreshCw,
+    ExternalLink
+} from "lucide-react";
 
-export function QRGenerator() {
-    const [url, setUrl] = useState('https://pcstyle.dev');
-    const [style, setStyle] = useState<QRStyle>('neon');
-    const [fgColor, setFgColor] = useState('#ff00ff');
-    const [bgColor, setBgColor] = useState('#000000');
-    const [size, setSize] = useState(256);
-    const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>('png');
-    const [downloadSize, setDownloadSize] = useState(512);
+type QRStyle = "neon" | "matrix" | "minimal" | "glitch";
+
+const styleConfig = {
+    neon: {
+        fg: "#ff00ff",
+        bg: "#000000",
+        label: "NEON_GLOW",
+    },
+    matrix: {
+        fg: "#00ff00",
+        bg: "#000000",
+        label: "MATRIX_RAIN",
+    },
+    glitch: {
+        fg: "#00ffff",
+        bg: "#000000",
+        label: "GLITCH_CORE",
+    },
+    minimal: {
+        fg: "#ffffff",
+        bg: "#000000",
+        label: "MINIMAL_PURE",
+    },
+};
+
+export default function QRGenerator() {
+    const [url, setUrl] = useState("https://pcstyle.dev");
+    const [qrStyle, setQrStyle] = useState<QRStyle>("neon");
+    const [color, setColor] = useState("#ff00ff");
     const [copied, setCopied] = useState(false);
-    const [isGenerating, setIsGenerating] = useState(false);
+    const canvasRef = useRef<HTMLCanvasElement>(null);
 
-    const qrRef = useRef<QRPreviewHandle>(null);
+    const generateQR = async () => {
+        if (!canvasRef.current) return;
 
-    // Update colors when style changes
-    const handleStyleChange = (newStyle: QRStyle) => {
-        setStyle(newStyle);
-        const preset = stylePresets[newStyle];
-        setFgColor(preset.fgColor);
-        setBgColor(preset.bgColor);
-    };
+        try {
+            const canvas = canvasRef.current;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return;
 
-    const handleDownload = () => {
-        setIsGenerating(true);
-        setTimeout(() => {
-            if (qrRef.current) {
-                qrRef.current.download(downloadFormat, downloadSize);
+            const size = 1024;
+            canvas.width = size;
+            canvas.height = size;
+
+            // Draw background
+            ctx.fillStyle = "#000000";
+            ctx.fillRect(0, 0, size, size);
+
+            // Generate QR modules
+            const qrData = QRCode.create(url, { errorCorrectionLevel: 'H' });
+            const modules = qrData.modules;
+            const moduleCount = modules.size;
+            const moduleSize = size / moduleCount;
+
+            // Apply style-specific logic
+            if (qrStyle === "glitch") {
+                // Red layer
+                ctx.globalAlpha = 0.5;
+                ctx.fillStyle = "#ff0000";
+                for (let row = 0; row < moduleCount; row++) {
+                    for (let col = 0; col < moduleCount; col++) {
+                        if (modules.get(row, col)) {
+                            ctx.fillRect(col * moduleSize + 3, row * moduleSize, moduleSize - 2, moduleSize - 2);
+                        }
+                    }
+                }
+                // Cyan layer
+                ctx.fillStyle = "#00ffff";
+                for (let row = 0; row < moduleCount; row++) {
+                    for (let col = 0; col < moduleCount; col++) {
+                        if (modules.get(row, col)) {
+                            ctx.fillRect(col * moduleSize - 3, row * moduleSize, moduleSize - 2, moduleSize - 2);
+                        }
+                    }
+                }
+                ctx.globalAlpha = 1;
             }
-            setIsGenerating(false);
-        }, 300);
+
+            ctx.fillStyle = color;
+
+            if (qrStyle === "neon") {
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = color;
+            } else {
+                ctx.shadowBlur = 0;
+            }
+
+            for (let row = 0; row < moduleCount; row++) {
+                for (let col = 0; col < moduleCount; col++) {
+                    if (modules.get(row, col)) {
+                        if (qrStyle === "matrix") {
+                            ctx.globalAlpha = 0.4 + Math.random() * 0.6;
+                        } else {
+                            ctx.globalAlpha = 1;
+                        }
+
+                        ctx.fillRect(
+                            col * moduleSize + 1,
+                            row * moduleSize + 1,
+                            moduleSize - 2,
+                            moduleSize - 2
+                        );
+                    }
+                }
+            }
+
+            ctx.globalAlpha = 1;
+            ctx.shadowBlur = 0;
+
+        } catch (err) {
+            console.error(err);
+        }
     };
 
-    const generateApiUrl = () => {
-        const params = new URLSearchParams({
-            url,
-            style,
-            fg: fgColor.replace('#', ''),
-            bg: bgColor.replace('#', ''),
-            size: downloadSize.toString(),
-            format: downloadFormat,
-        });
-        return `https://qr.pcstyle.dev/api/generate?${params.toString()}`;
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            generateQR();
+        }, 100);
+        return () => clearTimeout(timer);
+    }, [url, qrStyle, color]);
+
+    const downloadQR = () => {
+        if (!canvasRef.current) return;
+        const link = document.createElement("a");
+        link.download = `pcstyle-qr-${Date.now()}.png`;
+        link.href = canvasRef.current.toDataURL("image/png");
+        link.click();
     };
 
-    const copyApiUrl = async () => {
-        await navigator.clipboard.writeText(generateApiUrl());
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+    const copyImage = async () => {
+        if (!canvasRef.current) return;
+        try {
+            canvasRef.current.toBlob(async (blob) => {
+                if (blob) {
+                    try {
+                        const item = new ClipboardItem({ "image/png": blob });
+                        await navigator.clipboard.write([item]);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                    } catch (e) {
+                        // Fallback for browsers that don't support ClipboardItem
+                        const reader = new FileReader();
+                        reader.onload = async () => {
+                            const dataUrl = reader.result as string;
+                            await navigator.clipboard.writeText(dataUrl);
+                            setCopied(true);
+                            setTimeout(() => setCopied(false), 2000);
+                        };
+                        reader.readAsDataURL(blob);
+                    }
+                }
+            });
+        } catch (err) {
+            console.error("Failed to copy image:", err);
+        }
     };
 
     return (
-        <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
-            {/* Left Column - Controls */}
-            <div className="space-y-6">
-                {/* URL Input */}
-                <div className="space-y-2">
-                    <label className="block text-xs uppercase tracking-[0.3em] text-[#ff00ff]/60 font-mono">
-                        Target URL
-                    </label>
-                    <div className="relative">
-                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#ff00ff]/60">
-                            <Link className="w-5 h-5" />
+        <div className="max-w-7xl mx-auto px-6 py-12">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+
+                {/* Controls Section */}
+                <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="space-y-8"
+                >
+                    <div className="space-y-6 bg-black/40 p-8 border border-[#ff00ff]/20 rounded-xl backdrop-blur-md">
+                        <div className="space-y-2">
+                            <label className="text-xs text-gray-500 uppercase tracking-[0.3em] font-bold">
+                                SYSTEM_INPUT_URL
+                            </label>
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    value={url}
+                                    onChange={(e) => setUrl(e.target.value)}
+                                    className="w-full p-4 bg-black/60 border border-[#ff00ff]/30 rounded-lg text-white font-mono text-sm placeholder-gray-700 outline-none focus:border-[#ff00ff] focus:shadow-[0_0_15px_rgba(255,0,255,0.2)] transition-all"
+                                    placeholder="https://..."
+                                />
+                                <QrCode className="absolute right-4 top-4 w-5 h-5 text-[#ff00ff]/50" />
+                            </div>
                         </div>
-                        <input
-                            type="url"
-                            value={url}
-                            onChange={(e) => setUrl(e.target.value)}
-                            placeholder="https://pcstyle.dev"
-                            className="w-full bg-black/50 border border-white/10 rounded-lg pl-11 pr-4 py-3
-                       text-sm font-mono tracking-wide
-                       focus:outline-none focus:border-[#ff00ff]/50 focus:ring-2 focus:ring-[#ff00ff]/20
-                       placeholder-white/30 transition-all"
-                        />
-                        <motion.div
-                            className="absolute right-3 top-1/2 -translate-y-1/2"
-                            initial={{ scale: 0 }}
-                            animate={{ scale: url.length > 0 ? 1 : 0 }}
+
+                        <div className="space-y-4">
+                            <label className="text-xs text-gray-500 uppercase tracking-[0.3em] font-bold">
+                                RENDER_PRESETS
+                            </label>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                {(Object.keys(styleConfig) as QRStyle[]).map((style) => (
+                                    <button
+                                        key={style}
+                                        onClick={() => {
+                                            setQrStyle(style);
+                                            setColor(styleConfig[style].fg);
+                                        }}
+                                        className={`p-3 border rounded-lg font-mono text-[9px] uppercase tracking-wider transition-all ${qrStyle === style
+                                                ? "border-[#ff00ff] bg-[#ff00ff]/10 text-white shadow-[0_0_10px_rgba(255,255,255,0.1)]"
+                                                : "border-gray-800 text-gray-600 hover:border-gray-600 hover:text-gray-400"
+                                            }`}
+                                    >
+                                        {styleConfig[style].label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <label className="text-xs text-gray-500 uppercase tracking-[0.3em] font-bold">
+                                COLOR_PROTOCOL
+                            </label>
+                            <div className="flex flex-wrap gap-3">
+                                {["#ff00ff", "#00ff00", "#00ffff", "#ffffff", "#ffff00", "#ff4d4d"].map((c) => (
+                                    <button
+                                        key={c}
+                                        onClick={() => setColor(c)}
+                                        className={`w-10 h-10 rounded-lg border-2 transition-all ${color === c ? "border-white scale-110 shadow-[0_0_15px_rgba(255,255,255,0.3)]" : "border-transparent opacity-50 hover:opacity-100"
+                                            }`}
+                                        style={{ backgroundColor: c }}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <button
+                            onClick={downloadQR}
+                            className="flex items-center justify-center gap-3 p-4 bg-[#ff00ff] text-black font-black uppercase tracking-widest text-sm hover:bg-white hover:shadow-[0_0_20px_#ff00ff] transition-all active:scale-95"
                         >
-                            <Sparkles className="w-4 h-4 text-[#ff00ff]" />
-                        </motion.div>
-                    </div>
-                </div>
-
-                {/* Style Selector */}
-                <StyleSelector selected={style} onSelect={handleStyleChange} />
-
-                {/* Color Pickers */}
-                <div className="grid grid-cols-2 gap-4">
-                    <ColorPicker label="Foreground" value={fgColor} onChange={setFgColor} />
-                    <ColorPicker label="Background" value={bgColor} onChange={setBgColor} />
-                </div>
-
-                {/* Preview Size */}
-                <div className="space-y-2">
-                    <label className="block text-xs uppercase tracking-[0.3em] text-[#ff00ff]/60 font-mono">
-                        Preview Size
-                    </label>
-                    <div className="flex gap-2">
-                        {[128, 192, 256].map((s) => (
-                            <motion.button
-                                key={s}
-                                onClick={() => setSize(s)}
-                                className={`flex-1 py-2 px-3 rounded-lg border text-sm font-mono transition-all
-                  ${size === s
-                                        ? 'border-[#ff00ff] bg-[#ff00ff]/10 text-[#ff00ff]'
-                                        : 'border-white/10 bg-white/5 text-white/60 hover:border-[#ff00ff]/50'
-                                    }
-                `}
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
-                            >
-                                {s}px
-                            </motion.button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Download Options */}
-                <div className="p-4 bg-black/30 border border-white/10 rounded-xl space-y-4">
-                    <h3 className="text-xs uppercase tracking-[0.3em] text-white/60 font-mono flex items-center gap-2">
-                        <Download className="w-4 h-4" />
-                        Export Options
-                    </h3>
-
-                    {/* Download Size */}
-                    <div className="space-y-2">
-                        <label className="block text-[10px] uppercase tracking-wider text-white/40 font-mono">
-                            Export Size
-                        </label>
-                        <div className="flex gap-2 flex-wrap">
-                            {sizeOptions.map((opt) => (
-                                <motion.button
-                                    key={opt.value}
-                                    onClick={() => setDownloadSize(opt.value)}
-                                    className={`py-1.5 px-3 rounded-md border text-xs font-mono transition-all
-                    ${downloadSize === opt.value
-                                            ? 'border-[#ff00ff] bg-[#ff00ff]/10 text-[#ff00ff]'
-                                            : 'border-white/10 bg-white/5 text-white/50 hover:border-[#ff00ff]/50'
-                                        }
-                  `}
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
-                                >
-                                    {opt.label}
-                                </motion.button>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Format Selection */}
-                    <div className="space-y-2">
-                        <label className="block text-[10px] uppercase tracking-wider text-white/40 font-mono">
-                            Format
-                        </label>
-                        <div className="flex gap-2">
-                            {formatOptions.map((opt) => (
-                                <motion.button
-                                    key={opt.value}
-                                    onClick={() => setDownloadFormat(opt.value)}
-                                    className={`flex-1 py-2 px-4 rounded-lg border text-sm font-mono uppercase tracking-wider transition-all
-                    ${downloadFormat === opt.value
-                                            ? 'border-[#ff00ff] bg-[#ff00ff]/10 text-[#ff00ff]'
-                                            : 'border-white/10 bg-white/5 text-white/50 hover:border-[#ff00ff]/50'
-                                        }
-                  `}
-                                    whileHover={{ scale: 1.02 }}
-                                    whileTap={{ scale: 0.98 }}
-                                >
-                                    {opt.label}
-                                </motion.button>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Download Button */}
-                    <motion.button
-                        onClick={handleDownload}
-                        disabled={isGenerating}
-                        className="w-full py-3 px-6 bg-gradient-to-r from-[#ff00ff] to-[#ff00ff]/80 
-                     text-black font-mono uppercase tracking-[0.2em] text-sm font-bold
-                     rounded-lg transition-all hover:shadow-[0_0_30px_rgba(255,0,255,0.5)]
-                     disabled:opacity-50 disabled:cursor-not-allowed
-                     flex items-center justify-center gap-2"
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                    >
-                        <AnimatePresence mode="wait">
-                            {isGenerating ? (
-                                <motion.div
-                                    key="generating"
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    className="flex items-center gap-2"
-                                >
-                                    <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
-                                    GENERATING...
-                                </motion.div>
-                            ) : (
-                                <motion.div
-                                    key="download"
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    className="flex items-center gap-2"
-                                >
-                                    <Download className="w-4 h-4" />
-                                    DOWNLOAD {downloadFormat.toUpperCase()}
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </motion.button>
-                </div>
-
-                {/* API URL */}
-                <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                        <label className="text-xs uppercase tracking-[0.3em] text-[#ff00ff]/60 font-mono flex items-center gap-2">
-                            <Terminal className="w-4 h-4" />
-                            API Endpoint
-                        </label>
-                        <motion.button
-                            onClick={copyApiUrl}
-                            className="text-xs text-white/40 hover:text-[#ff00ff] transition-colors flex items-center gap-1"
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
+                            <Download className="w-5 h-5" />
+                            EXPORT_PNG
+                        </button>
+                        <button
+                            onClick={copyImage}
+                            className={`flex items-center justify-center gap-3 p-4 border font-black uppercase tracking-widest text-sm transition-all active:scale-95 ${copied ? "border-green-500 text-green-500" : "border-[#ff00ff] text-[#ff00ff] hover:bg-[#ff00ff]/10"
+                                }`}
                         >
-                            {copied ? (
-                                <>
-                                    <Check className="w-3 h-3" />
-                                    Copied!
-                                </>
-                            ) : (
-                                <>
-                                    <Copy className="w-3 h-3" />
-                                    Copy
-                                </>
-                            )}
-                        </motion.button>
+                            {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+                            {copied ? "COPIED" : "COPY_IMAGE"}
+                        </button>
                     </div>
-                    <div className="p-3 bg-black/50 border border-white/10 rounded-lg overflow-x-auto">
-                        <code className="text-xs font-mono text-[#00ffff]/80 whitespace-nowrap">
-                            {generateApiUrl()}
-                        </code>
-                    </div>
-                </div>
-            </div>
+                </motion.div>
 
-            {/* Right Column - Preview */}
-            <div className="flex flex-col items-center justify-center">
-                <QRPreview
-                    ref={qrRef}
-                    url={url}
-                    style={style}
-                    fgColor={fgColor}
-                    bgColor={bgColor}
-                    size={size}
-                />
+                {/* Preview Section */}
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.1 }}
+                    className="relative group lg:sticky lg:top-24"
+                >
+                    <div className="absolute -inset-1 bg-[#ff00ff]/20 rounded-2xl blur-3xl group-hover:bg-[#ff00ff]/30 transition-all duration-500" />
+                    <div className="relative bg-black/80 border border-[#ff00ff]/20 p-8 rounded-2xl shadow-2xl backdrop-blur-xl">
+                        <div className="flex justify-between items-center mb-6">
+                            <span className="text-[10px] text-[#ff00ff] font-bold tracking-[0.4em] uppercase">SYSTEM_PREVIEW</span>
+                            <div className="flex gap-2 text-gray-800">
+                                <span className="text-[9px]">0xDEADBEEF</span>
+                            </div>
+                        </div>
+
+                        <div className="aspect-square bg-black border border-[#ff00ff]/10 relative p-6 flex items-center justify-center group-hover:border-[#ff00ff]/40 transition-colors overflow-hidden">
+                            <canvas
+                                ref={canvasRef}
+                                className="max-w-full max-h-full transition-transform duration-500 hover:scale-[1.02]"
+                                style={{ imageRendering: "pixelated" }}
+                            />
+
+                            {/* Corner Accents */}
+                            <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-[#ff00ff]/40" />
+                            <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-[#ff00ff]/40" />
+                            <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-[#ff00ff]/40" />
+                            <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-[#ff00ff]/40" />
+                        </div>
+
+                        <div className="mt-8 pt-6 border-t border-[#ff00ff]/10 space-y-4">
+                            <div className="flex justify-between items-center text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+                                <span>STATUS:</span>
+                                <span className="text-green-500 flex items-center gap-1">
+                                    <Zap className="w-3 h-3 fill-current" />
+                                    ENCRYPT_READY
+                                </span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 text-[9px] text-gray-600 font-bold uppercase tracking-[0.2em]">
+                                <div className="space-y-1">
+                                    <p>SIGNAL: 1024-BIT</p>
+                                    <p>LATENCY: 0.05MS</p>
+                                </div>
+                                <div className="space-y-1 text-right">
+                                    <p>STYLE: {qrStyle}</p>
+                                    <p>PROTOCOL: QR-777</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </motion.div>
+
             </div>
         </div>
     );
